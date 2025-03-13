@@ -128,7 +128,7 @@ export default function CollectPage() {
         {
           inlineData: {
             data: base64Data,
-            mimeType: 'image/jpeg', // Adjust this if you know the exact type
+            mimeType: 'image/jpeg', 
           },
         },
       ]
@@ -360,13 +360,6 @@ export default function CollectPage() {
           </div>
         </div>
       )}
-
-      {/* Add a conditional render to show user info or login prompt */}
-      {/* {user ? (
-        <p className="text-sm text-gray-600 mb-4">Logged in as: {user.name}</p>
-      ) : (
-        <p className="text-sm text-red-600 mb-4">Please log in to collect waste and earn rewards.</p>
-      )} */}
     </div>
   )
 }

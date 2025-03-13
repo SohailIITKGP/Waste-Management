@@ -28,7 +28,7 @@ export default function LeaderboardPage() {
         const uniqueRewards = Object.values(
           fetchedRewards.reduce((acc, reward) => {
             if (!acc[reward.userId] || acc[reward.userId].points < reward.points) {
-              acc[reward.userId] = reward
+              acc[reward.userId] = reward 
             }
             return acc
           }, {} as Record<number, Reward>)

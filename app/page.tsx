@@ -34,8 +34,6 @@ export default function Home() {
     co2Offset: 0
   });
 
-  
-
   useEffect(() => {
     async function fetchImpactData() {
       try {
