@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Menu, Coins, Leaf, Search, Bell, User, ChevronDown, LogIn } from "lucide-react"
 import { 
@@ -62,7 +61,6 @@ interface AppNotification {
 }
 
 export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
-  const [provider, setProvider] = useState<IProvider | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
@@ -85,7 +83,6 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
         setWeb3AuthInstance(web3authInstance);
   
         if (web3authInstance.connected) {
-          setProvider(web3authInstance.provider);
           setLoggedIn(true);
           const user = await web3authInstance.getUserInfo();
           if (user.email) {
@@ -159,7 +156,6 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
     }
     try {
       const web3authProvider = await web3authInstance.connect();
-      setProvider(web3authProvider);
       setLoggedIn(true);
       const user = await web3authInstance.getUserInfo();
       if (user.email) {
@@ -183,7 +179,6 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
     }
     try {
       await web3authInstance.logout();
-      setProvider(null);
       setLoggedIn(false);
       setUserInfo(null);
       localStorage.removeItem('userEmail');

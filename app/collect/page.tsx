@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'react-hot-toast'
 import { getWasteCollectionTasks, updateTaskStatus, saveReward, saveCollectedWaste, getUserByEmail } from '@/utils/db/actions'
 import { GoogleGenerativeAI } from "@google/generative-ai"
+import Image from 'next/image'
 
 // Make sure to set your Gemini API key in your environment variables
 const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
@@ -331,7 +332,16 @@ export default function CollectPage() {
               </div>
             </div>
             {verificationImage && (
-              <img src={verificationImage} alt="Verification" className="mb-4 rounded-md w-full" />
+              <div className="mt-4">
+                <div className="relative w-full h-64">
+                  <Image
+                    src={verificationImage}
+                    alt="Verification"
+                    fill
+                    className="object-contain rounded-lg"
+                  />
+                </div>
+              </div>
             )}
             <Button
               onClick={handleVerify}
