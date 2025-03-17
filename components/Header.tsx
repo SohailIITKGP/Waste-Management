@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Web3Auth } from "@web3auth/modal"
-import { CHAIN_NAMESPACES, IProvider } from "@web3auth/base"
+import { CHAIN_NAMESPACES } from "@web3auth/base"
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider"
 import { useMediaQuery } from "@/hooks/useMediaQuery"
 import { createUser, getUnreadNotifications, markNotificationAsRead, getUserByEmail, getUserBalance } from "@/utils/db/actions"
@@ -42,7 +42,6 @@ const web3auth = new Web3Auth({
 
 interface HeaderProps {
   onMenuClick: () => void;
-  totalEarnings: number;
 }
 
 interface UserInfo {
@@ -60,7 +59,7 @@ interface AppNotification {
   createdAt: Date;
 }
 
-export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
+export default function Header({ onMenuClick }: HeaderProps) {
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
@@ -155,7 +154,7 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
       return;
     }
     try {
-      const web3authProvider = await web3authInstance.connect();
+      await web3authInstance.connect();
       setLoggedIn(true);
       const user = await web3authInstance.getUserInfo();
       if (user.email) {
