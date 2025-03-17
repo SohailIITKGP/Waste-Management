@@ -9,6 +9,23 @@ import { createUser, getUserByEmail, createReport, getRecentReports } from '@/ut
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast'
 
+interface VerificationResult {
+  isValid: boolean;
+  wasteType: string;
+  amount: string;
+  confidence: number;
+}
+
+interface Report {
+  id: number;
+  location: string;
+  wasteType: string;
+  amount: string;
+  createdAt: Date;
+  image?: string;
+  verificationData?: string;
+}
+
 const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -28,61 +45,43 @@ export default function ReportPage() {
 
   const [newReport, setNewReport] = useState({
     location: '',
-    type: '',
+    wasteType: '',
     amount: '',
-  })
+    image: null as File | null,
+  });
 
-  const [file, setFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
-  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'failure'>('idle')
-  const [verificationResult, setVerificationResult] = useState<{
-    wasteType: string;
-    quantity: string;
-    confidence: number;
-  } | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
+  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchBox, setSearchBox] = useState<google.maps.places.SearchBox | null>(null);
 
   const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: googleMapsApiKey!,
-    libraries: libraries
+    googleMapsApiKey: googleMapsApiKey || '',
+    libraries,
   });
 
-  const onLoad = useCallback((ref: google.maps.places.SearchBox) => {
-    setSearchBox(ref);
-  }, []);
-
   const onPlacesChanged = () => {
-    if (searchBox) {
+    if (searchBox && searchBox.getPlaces()) {
       const places = searchBox.getPlaces();
-      if (places && places.length > 0) {
-        const place = places[0];
-        setNewReport(prev => ({
-          ...prev,
-          location: place.formatted_address || '',
-        }));
+      if (!places || places.length === 0) return;
+      const place = places[0];
+      if (place.formatted_address) {
+        setNewReport(prev => ({ ...prev, location: place.formatted_address! }));
       }
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setNewReport({ ...newReport, [name]: value })
-  }
+    const { name, value } = e.target;
+    setNewReport(prev => ({ ...prev, [name]: value }));
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0]
-      setFile(selectedFile)
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setPreview(e.target?.result as string)
-      }
-      reader.readAsDataURL(selectedFile)
+    const file = e.target.files?.[0];
+    if (file) {
+      setNewReport(prev => ({ ...prev, image: file }));
     }
-  }
+  };
 
   const readFileAsBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -94,69 +93,51 @@ export default function ReportPage() {
   };
 
   const handleVerify = async () => {
-    if (!file) return
-
-    setVerificationStatus('verifying')
-    
-    try {
-      const genAI = new GoogleGenerativeAI(geminiApiKey!);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-      const base64Data = await readFileAsBase64(file);
-
-      const imageParts = [
-        {
-          inlineData: {
-            data: base64Data.split(',')[1],
-            mimeType: file.type,
-          },
-        },
-      ];
-
-      const prompt = `You are an expert in waste management and recycling. 
-Provide your response ONLY as a valid JSON object with NO extra explanation. 
-Ensure this exact format:
-
-{
-  "wasteType": "type of waste",
-  "quantity": "estimated quantity with unit",
-  "confidence": 0.85
-}
-
-If unsure, still provide a best-guess JSON output.`;
-
-
-      const result = await model.generateContent([prompt, ...imageParts]);
-      const response = await result.response;
-      const text = response.text().replace(/```json|```/g, '').trim(); // Remove triple backticks
-
-try {
-  const parsedResult = JSON.parse(text);
-  if (parsedResult.wasteType && parsedResult.quantity && parsedResult.confidence) {
-    setVerificationResult(parsedResult);
-    setVerificationStatus('success');
-    setNewReport({
-      ...newReport,
-      type: parsedResult.wasteType,
-      amount: parsedResult.quantity
-    });
-  } else {
-    console.error('Invalid verification result:', parsedResult);
-    setVerificationStatus('failure');
-  }
-} catch (error) {
-  console.error('Failed to parse JSON response:', text, error);
-  setVerificationStatus('failure');
-}
-    } catch (error) {
-      console.error('Error verifying waste:', error);
-      setVerificationStatus('failure');
+    if (!newReport.image) {
+      toast.error('Please upload an image first');
+      return;
     }
-  }
+
+    setIsVerifying(true);
+    try {
+      const genAI = new GoogleGenerativeAI(geminiApiKey || '');
+      const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+      
+      const imageData = await readFileAsBase64(newReport.image);
+      const prompt = `Analyze this waste image and determine:
+        1. Is this a valid waste image? (true/false)
+        2. What type of waste is shown? (plastic/paper/metal/organic)
+        3. What is the approximate amount? (small/medium/large)
+        4. What is your confidence level? (0-100)
+        Format the response as JSON with these keys: isValid, wasteType, amount, confidence`;
+
+      const result = await model.generateContent([prompt, imageData]);
+      const response = await result.response;
+      const text = response.text();
+      const verificationResult = JSON.parse(text) as VerificationResult;
+      
+      setVerificationResult(verificationResult);
+      if (verificationResult.isValid) {
+        setNewReport(prev => ({
+          ...prev,
+          wasteType: verificationResult.wasteType,
+          amount: verificationResult.amount
+        }));
+        toast.success('Image verified successfully!');
+      } else {
+        toast.error('Invalid waste image. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error verifying image:', error);
+      toast.error('Error verifying image. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (verificationStatus !== 'success' || !user) {
+    if (verificationResult === null || !user) {
       toast.error('Please verify the waste before submitting or log in.');
       return;
     }
@@ -166,11 +147,11 @@ try {
       const report = await createReport(
         user.id,
         newReport.location,
-        newReport.type,
+        newReport.wasteType,
         newReport.amount,
-        preview || undefined,
+        newReport.image ? await readFileAsBase64(newReport.image) : undefined,
         verificationResult ? JSON.stringify(verificationResult) : undefined
-      ) as any;
+      ) as Report;
       
       const formattedReport = {
         id: report.id,
@@ -181,13 +162,9 @@ try {
       };
       
       setReports([formattedReport, ...reports]);
-      setNewReport({ location: '', type: '', amount: '' });
-      setFile(null);
-      setPreview(null);
-      setVerificationStatus('idle');
+      setNewReport({ location: '', wasteType: '', amount: '', image: null });
       setVerificationResult(null);
       
-
       toast.success(`Report submitted successfully! You've earned points for reporting waste.`);
     } catch (error) {
       console.error('Error submitting report:', error);
@@ -247,19 +224,13 @@ try {
           </div>
         </div>
         
-        {preview && (
-          <div className="mt-4 mb-8">
-            <img src={preview} alt="Waste preview" className="max-w-full h-auto rounded-xl shadow-md" />
-          </div>
-        )}
-        
         <Button 
           type="button" 
           onClick={handleVerify} 
           className="w-full mb-8 bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg rounded-xl transition-colors duration-300" 
-          disabled={!file || verificationStatus === 'verifying'}
+          disabled={!newReport.image || isVerifying}
         >
-          {verificationStatus === 'verifying' ? (
+          {isVerifying ? (
             <>
               <Loader className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
               Verifying...
@@ -267,7 +238,7 @@ try {
           ) : 'Verify Waste'}
         </Button>
 
-        {verificationStatus === 'success' && verificationResult && (
+        {verificationResult && (
           <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-8 rounded-r-xl">
             <div className="flex items-center">
               <CheckCircle className="h-6 w-6 text-green-400 mr-3" />
@@ -275,7 +246,7 @@ try {
                 <h3 className="text-lg font-medium text-green-800">Verification Successful</h3>
                 <div className="mt-2 text-sm text-green-700">
                   <p>Waste Type: {verificationResult.wasteType}</p>
-                  <p>Quantity: {verificationResult.quantity}</p>
+                  <p>Quantity: {verificationResult.amount}</p>
                   <p>Confidence: {(verificationResult.confidence * 100).toFixed(2)}%</p>
                 </div>
               </div>
@@ -288,7 +259,7 @@ try {
             <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Location</label>
             {isLoaded ? (
               <StandaloneSearchBox
-                onLoad={onLoad}
+                onLoad={(ref) => setSearchBox(ref)}
                 onPlacesChanged={onPlacesChanged}
               >
                 <input
@@ -320,8 +291,8 @@ try {
             <input
               type="text"
               id="type"
-              name="type"
-              value={newReport.type}
+              name="wasteType"
+              value={newReport.wasteType}
               onChange={handleInputChange}
               required
               className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 bg-gray-100"

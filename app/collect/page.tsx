@@ -260,6 +260,7 @@ export default function CollectPage() {
                     {task.date}
                   </div>
                 </div>
+                
                 <div className="flex justify-end">
                   {task.status === 'pending' && (
                     <Button onClick={() => handleStatusChange(task.id, 'in_progress')} variant="outline" size="sm">

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from 'next/navigation'
 import { Button } from "@/components/ui/button"
-import { Menu, Coins,Leaf, Search, Bell, User, ChevronDown, LogIn, LogOut } from "lucide-react"
+import { Menu, Coins, Leaf, Search, Bell, User, ChevronDown, LogIn } from "lucide-react"
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -13,12 +13,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Web3Auth } from "@web3auth/modal"
-import { CHAIN_NAMESPACES, IProvider, WEB3AUTH_NETWORK } from "@web3auth/base"
+import { CHAIN_NAMESPACES, IProvider } from "@web3auth/base"
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider"
 import { useMediaQuery } from "@/hooks/useMediaQuery"
 import { createUser, getUnreadNotifications, markNotificationAsRead, getUserByEmail, getUserBalance } from "@/utils/db/actions"
 
-const clientId = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID;
+const clientId = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID || '';
 
 const chainConfig = {
   chainNamespace: CHAIN_NAMESPACES.EIP155,
@@ -46,36 +46,55 @@ interface HeaderProps {
   totalEarnings: number;
 }
 
+interface UserInfo {
+  email: string;
+  name?: string;
+  profileImage?: string;
+}
+
+interface AppNotification {
+  id: number;
+  userId: number;
+  message: string;
+  type: string;
+  isRead: boolean;
+  createdAt: Date;
+}
+
 export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
   const [provider, setProvider] = useState<IProvider | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [userInfo, setUserInfo] = useState<any>(null);
-  const pathname = usePathname()
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const isMobile = useMediaQuery("(max-width: 768px)")
   const [balance, setBalance] = useState(0)
-  const [web3auth, setWeb3Auth] = useState<Web3Auth | null>(null);
+  const [web3authInstance, setWeb3AuthInstance] = useState<Web3Auth | null>(null);
 
   useEffect(() => {
     const initWeb3Auth = async () => {
       try {
         console.log("Initializing Web3Auth...");
         const web3authInstance = new Web3Auth({
-          clientId,
+          clientId: clientId || '',
           web3AuthNetwork: "sapphire_devnet",
           privateKeyProvider,
         });
   
         await web3authInstance.initModal();
-        setWeb3Auth(web3authInstance);
+        setWeb3AuthInstance(web3authInstance);
   
         if (web3authInstance.connected) {
           setProvider(web3authInstance.provider);
           setLoggedIn(true);
           const user = await web3authInstance.getUserInfo();
-          console.log("User Info:", user);
-          setUserInfo(user);
+          if (user.email) {
+            setUserInfo({
+              email: user.email,
+              name: user.name || undefined,
+              profileImage: user.profileImage || undefined
+            });
+          }
         }
       } catch (error) {
         console.error("Web3Auth initialization failed:", error);
@@ -84,11 +103,10 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
       }
     };
   
-    if (!web3auth) {
+    if (!web3authInstance) {
       initWeb3Auth();
     }
-  }, [web3auth]); 
-  
+  }, [web3authInstance]);
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -135,17 +153,21 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
   }, [userInfo]);
 
   const login = async () => {
-    if (!web3auth) {
+    if (!web3authInstance) {
       console.error("Web3Auth is not initialized yet");
       return;
     }
     try {
-      const web3authProvider = await web3auth.connect();
+      const web3authProvider = await web3authInstance.connect();
       setProvider(web3authProvider);
       setLoggedIn(true);
-      const user = await web3auth.getUserInfo();
-      setUserInfo(user);
+      const user = await web3authInstance.getUserInfo();
       if (user.email) {
+        setUserInfo({
+          email: user.email,
+          name: user.name || undefined,
+          profileImage: user.profileImage || undefined
+        });
         localStorage.setItem('userEmail', user.email);
         await createUser(user.email, user.name || 'Anonymous User');
       }
@@ -155,12 +177,12 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
   };
   
   const logout = async () => {
-    if (!web3auth) {
+    if (!web3authInstance) {
       console.log("web3auth not initialized yet");
       return;
     }
     try {
-      await web3auth.logout();
+      await web3authInstance.logout();
       setProvider(null);
       setLoggedIn(false);
       setUserInfo(null);
@@ -171,16 +193,19 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
   };
 
   const getUserInfo = async () => {
-    if (web3auth.connected) {
-      const user = await web3auth.getUserInfo();
-      setUserInfo(user);
+    if (web3authInstance?.connected) {
+      const user = await web3authInstance.getUserInfo();
       if (user.email) {
+        setUserInfo({
+          email: user.email,
+          name: user.name || undefined,
+          profileImage: user.profileImage || undefined
+        });
         localStorage.setItem('userEmail', user.email);
         try {
           await createUser(user.email, user.name || 'Anonymous User');
         } catch (error) {
           console.error("Error creating user:", error);
-          // Handle the error appropriately, maybe show a message to the user
         }
       }
     }

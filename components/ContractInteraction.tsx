@@ -1,19 +1,38 @@
-// @ts-nocheck
-import { useState } from 'react';
+import { useState, FormEvent } from 'react';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { performDataAnalysis, proposeAndSignInitiative } from '@/utils/litProtocol';
 import { useSessionSigs } from '@/hooks/useSessionSigs';
 
-export default function ContractInteraction({ onWasteReport }) {
+interface ContractInteractionProps {
+  onWasteReport: (location: string, quantity: string) => void;
+}
+
+interface Insight {
+  totalWaste: number;
+  averageQuantity: number;
+  lastUpdated: Date;
+  averageWaste: number;
+  hotspotCount: number;
+}
+
+interface ProposalResult {
+  success: boolean;
+  message: string;
+  timestamp: Date;
+  txHash: string;
+  sigCount: number;
+}
+
+export default function ContractInteraction({ onWasteReport }: ContractInteractionProps) {
   const [location, setLocation] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [insights, setInsights] = useState(null);
+  const [insights, setInsights] = useState<Insight | null>(null);
   const [proposal, setProposal] = useState('');
-  const [proposalResult, setProposalResult] = useState(null);
+  const [proposalResult, setProposalResult] = useState<ProposalResult | null>(null);
   const sessionSigs = useSessionSigs();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     onWasteReport(location, quantity);
     setLocation('');

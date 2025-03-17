@@ -3,6 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { Leaf } from 'lucide-react';
 import { getUserDevices, getDeviceData, getDeviceTrips } from '@/utils/dimoApi';
 
+interface Trip {
+  id: string;
+  startTime: string;
+  endTime: string;
+  distance: number;
+  averageSpeed: number;
+  fuelEfficiency: number;
+}
+
 interface EcoScoreData {
   score: number;
   fuelEfficiency: number;
@@ -24,7 +33,7 @@ const DimoEcoScore: React.FC = () => {
           
           // Calculate eco-score based on DIMO data
           const fuelEfficiency = data.fuelPercentRemaining || 0;
-          const ecoFriendlyTrips = trips.trips.filter((trip: any) => trip.averageSpeed < 60).length || 0;
+          const ecoFriendlyTrips = trips.trips.filter((trip: Trip) => trip.averageSpeed < 60).length || 0;
           const score = Math.min(100, Math.round((fuelEfficiency * 10) + (ecoFriendlyTrips * 2)));
 
           setEcoScoreData({

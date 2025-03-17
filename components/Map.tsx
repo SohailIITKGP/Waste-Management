@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -7,6 +6,23 @@ import { Leaf } from 'lucide-react'
 import ContractInteraction from './ContractInteraction'
 import { encryptWasteData, submitEncryptedWasteData, performDataAnalysis } from '@/utils/litProtocol'
 import { useSessionSigs } from '@/hooks/useSessionSigs'
+
+interface WastePoint {
+  id: string;
+  location: [number, number];
+  quantity: number;
+  timestamp: Date;
+}
+
+interface Insight {
+  totalWaste: number;
+  averageQuantity: number;
+  lastUpdated: Date;
+  hotspotLocations: Array<{
+    location: [number, number];
+    wasteAmount: number;
+  }>;
+}
 
 // Custom leaf icon
 const leafIcon = new L.Icon({
@@ -20,19 +36,19 @@ const leafIcon = new L.Icon({
 })
 
 export default function Map() {
-  const [encryptedWastePoints, setEncryptedWastePoints] = useState([]);
-  const [insights, setInsights] = useState(null);
+  const [wastePoints, setWastePoints] = useState<WastePoint[]>([]);
+  const [insights, setInsights] = useState<Insight | null>(null);
   const sessionSigs = useSessionSigs();
 
   useEffect(() => {
-    const fetchEncryptedWastePoints = async () => {
+    const fetchWastePoints = async () => {
       // Implement fetching logic from your backend or IPFS
     };
 
-    fetchEncryptedWastePoints();
+    fetchWastePoints();
   }, []);
 
-  const handleWasteReport = async (location, quantity) => {
+  const handleWasteReport = async (location: [number, number], quantity: number) => {
     const wasteData = { location, quantity };
     const encryptedData = await encryptWasteData(wasteData);
     await submitEncryptedWasteData(encryptedData);
@@ -48,27 +64,27 @@ export default function Map() {
   };
 
   return (
-    <div className="h-screen flex">
-      <div className="w-3/4">
-        <MapContainer center={[51.505, -0.09]} zoom={13} style={{ height: '100%', width: '100%' }}>
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          {insights && insights.hotspotLocations.map((point, index) => (
-            <Marker key={index} position={[point.lat, point.lng]} icon={leafIcon}>
-              <Popup>
-                Waste Hotspot <br />
-                <Leaf className="w-6 h-6 inline-block mr-2 text-green-600" />
-                High waste generation area
-              </Popup>
-            </Marker>
-          ))}
-        </MapContainer>
-      </div>
-      <div className="w-1/4 p-4 overflow-y-auto">
-        <ContractInteraction onWasteReport={handleWasteReport} />
-      </div>
+    <div className="h-[calc(100vh-4rem)] w-full">
+      <MapContainer
+        center={[20.5937, 78.9629]}
+        zoom={5}
+        style={{ height: '100%', width: '100%' }}
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        {wastePoints.map((point, index) => (
+          <Marker key={point.id} position={point.location} icon={leafIcon}>
+            <Popup>
+              <div>
+                <p>Quantity: {point.quantity}</p>
+                <p>Time: {point.timestamp.toLocaleString()}</p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
     </div>
-  )
+  );
 }
